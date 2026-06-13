@@ -1,0 +1,955 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+<title>SPIELBAR · Trinkspiele online</title>
+<style>
+  :root {
+    --bg: #101418;
+    --surface: #1A2027;
+    --surface2: #222A33;
+    --line: #36404C;
+    --accent: #F5B945;
+    --accent-dark: #C98E1E;
+    --text: #ECEAE4;
+    --dim: #8B93A0;
+    --red: #E25555;
+    --green: #5BC78A;
+    --card-face: #FAF7F0;
+    --card-back: #26303B;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Avenir Next', 'Segoe UI', system-ui, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 18px 16px 40px;
+  }
+  #app { width: 100%; max-width: 480px; }
+
+  .header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 18px; }
+  .logo { font-weight: 800; font-size: 18px; letter-spacing: 1px; }
+  .logo span { color: var(--accent); }
+  .phase-tag { font-size: 11px; color: var(--dim); letter-spacing: 1.5px; text-transform: uppercase; }
+
+  .panel { background: var(--surface); border-radius: 16px; padding: 20px; margin-bottom: 14px; }
+  .eyebrow { font-size: 11px; letter-spacing: 2.5px; text-transform: uppercase; color: var(--accent); font-weight: 700; margin-bottom: 6px; }
+  .title-xl { font-size: 32px; font-weight: 800; letter-spacing: -0.5px; }
+  .title-lg { font-size: 24px; font-weight: 800; }
+  .sub { color: var(--dim); font-size: 13.5px; line-height: 1.5; }
+  .center { text-align: center; }
+
+  input[type=text] {
+    width: 100%; background: var(--surface2); border: 1px solid var(--line);
+    border-radius: 10px; padding: 12px 14px; color: var(--text); font-size: 16px; outline: none;
+  }
+  input[type=text]:focus { border-color: var(--accent-dark); }
+
+  .btn {
+    display: inline-block; padding: 13px 22px; border-radius: 12px; border: 1px solid var(--line);
+    background: var(--surface2); color: var(--text); font-weight: 700; font-size: 15px;
+    cursor: pointer; letter-spacing: 0.2px; text-align: center;
+  }
+  .btn.primary { background: var(--accent); color: #1A1408; border: none; }
+  .btn.full { width: 100%; }
+  .btn.sm { padding: 8px 14px; font-size: 13px; border-radius: 10px; }
+  .btn:disabled { background: #2A313A; color: #5A636E; cursor: default; border-color: transparent; }
+  .btn:active:not(:disabled) { transform: scale(0.98); }
+
+  .row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+  .stack { display: flex; flex-direction: column; gap: 8px; }
+
+  /* ---- Spielkarten ---- */
+  .card {
+    width: 56px; height: 80px; border-radius: 8px; background: var(--card-face);
+    border: 1px solid #D8D2C4; box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+    display: inline-flex; align-items: center; justify-content: center;
+    position: relative; flex-shrink: 0; transition: transform .15s, opacity .3s, border-color .15s;
+  }
+  .card.sm { width: 42px; height: 60px; }
+  .card.quer { width: 80px; height: 56px; }
+  .card.sm.quer { width: 60px; height: 42px; }
+  .card .corner { position: absolute; font-weight: 700; font-size: 13px; }
+  .card.sm .corner { font-size: 11px; }
+  .card .corner.tl { top: 3px; left: 5px; }
+  .card .corner.br { bottom: 3px; right: 5px; transform: rotate(180deg); }
+  .card .pip { font-size: 24px; }
+  .card.sm .pip { font-size: 17px; }
+  .card.red { color: var(--red); }
+  .card.black { color: #1B1F26; }
+  .card.hidden { background: var(--card-back); border-color: #33404D; box-shadow: none; }
+  .card.hidden::after {
+    content: ""; width: 70%; height: 76%; border-radius: 5px;
+    border: 1.5px solid var(--accent-dark);
+    background: repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(245,185,69,0.12) 4px, rgba(245,185,69,0.12) 8px);
+  }
+  .card.dim { opacity: 0.35; }
+  .card.selectable { cursor: pointer; }
+  .card.selectable:active { transform: translateY(-3px); }
+  .card.selected { border: 2px solid var(--accent); transform: translateY(-5px); }
+  .card.current { box-shadow: 0 0 0 2px var(--accent), 0 4px 12px rgba(245,185,69,0.3); }
+
+  .pyramid { display: flex; flex-direction: column; align-items: center; gap: 7px; margin-bottom: 4px; }
+  .pyramid .prow { display: flex; gap: 5px; align-items: center; justify-content: center; }
+
+  .player-chip {
+    background: var(--surface2); border-radius: 10px; padding: 10px 13px;
+    display: flex; justify-content: space-between; align-items: center; font-size: 14px;
+  }
+  .player-chip .name { font-weight: 700; }
+  .player-chip.offline { opacity: 0.45; }
+  .badge { font-size: 10.5px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;
+    padding: 3px 8px; border-radius: 6px; background: rgba(245,185,69,0.12); color: var(--accent); }
+
+  .sip-log { display: flex; flex-direction: column; gap: 5px; }
+  .sip-log div { font-size: 12.5px; color: var(--dim); padding: 6px 10px; border-radius: 8px; }
+  .sip-log div:first-child { color: var(--text); background: var(--surface2); }
+
+  .result-good { color: var(--green); font-size: 20px; font-weight: 800; }
+  .result-bad { color: var(--red); font-size: 20px; font-weight: 800; }
+
+  .code-display {
+    font-size: 38px; font-weight: 800; letter-spacing: 10px; color: var(--accent);
+    font-variant-numeric: tabular-nums; padding-left: 10px;
+  }
+  .mode-btn {
+    flex: 1; padding: 11px 8px; border-radius: 10px; font-size: 13.5px; font-weight: 700;
+    cursor: pointer; border: 1px solid var(--line); background: var(--surface2); color: var(--dim);
+  }
+  .mode-btn.active { border: 1.5px solid var(--accent); background: rgba(245,185,69,0.1); color: var(--accent); }
+
+  /* ---- Wer würde eher: Kategorien & eigene Fragen ---- */
+  .cat-list { display: flex; flex-direction: column; gap: 8px; }
+  .cat-chip {
+    display: flex; align-items: center; gap: 12px; background: var(--surface2);
+    border: 1px solid var(--line); border-radius: 12px; padding: 11px 13px; cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  .cat-chip[data-cat]:active { transform: scale(0.99); }
+  .cat-chip.active { border-color: var(--accent); background: rgba(245,185,69,0.08); }
+  .cat-chip .cat-ic { font-size: 22px; flex-shrink: 0; }
+  .cat-chip .cat-body { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .cat-chip .cat-name { font-weight: 800; font-size: 14px; }
+  .cat-chip .cat-name .age { font-size: 9.5px; font-weight: 800; letter-spacing: .5px; color: var(--red);
+    border: 1px solid var(--red); border-radius: 4px; padding: 1px 4px; margin-left: 4px; vertical-align: middle; }
+  .cat-chip .cat-desc { color: var(--dim); font-size: 11.5px; margin-top: 1px; }
+  .cat-chip .cat-check { color: var(--accent); font-weight: 800; font-size: 16px; width: 16px; flex-shrink: 0; text-align: center; }
+  .custom-q {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    background: var(--surface2); border-radius: 9px; padding: 8px 11px; font-size: 13px;
+  }
+  .custom-q span { line-height: 1.35; }
+  .custom-x { background: none; border: none; color: var(--dim); font-size: 15px; cursor: pointer; flex-shrink: 0; }
+  .custom-x:active { color: var(--red); }
+
+  /* ---- Landingpage ---- */
+  .hero { padding: 24px 4px 10px; }
+  .hero .title-xl { line-height: 1.08; }
+  .section-label {
+    font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--dim);
+    font-weight: 700; margin: 18px 4px 10px;
+  }
+  .game-list { display: flex; flex-direction: column; gap: 10px; }
+  .game-tile {
+    display: flex; align-items: center; gap: 14px; background: var(--surface);
+    border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px;
+    cursor: pointer; transition: border-color .15s, transform .1s, background .15s;
+  }
+  .game-tile:not(.locked):active { transform: scale(0.985); }
+  .game-tile:not(.locked):hover { border-color: var(--accent-dark); }
+  .game-tile.locked { opacity: 0.5; cursor: default; }
+  .game-tile .tile-icon { font-size: 34px; flex-shrink: 0; width: 44px; text-align: center; }
+  .game-tile .tile-body { flex: 1; min-width: 0; }
+  .game-tile .tile-name { font-weight: 800; font-size: 16px; }
+  .game-tile .tile-tag { color: var(--accent); font-size: 12.5px; font-weight: 600; margin-top: 1px; }
+  .game-tile .tile-meta { color: var(--dim); font-size: 12px; margin-top: 3px; }
+  .game-tile .tile-arrow { color: var(--dim); font-size: 20px; flex-shrink: 0; }
+  .game-tile .soon-tag {
+    font-size: 10px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;
+    color: var(--dim); border: 1px solid var(--line); border-radius: 6px; padding: 3px 8px; flex-shrink: 0;
+  }
+  .back-link {
+    background: none; border: none; color: var(--dim); font-size: 14px; font-weight: 600;
+    cursor: pointer; padding: 2px 0; margin-bottom: 12px;
+  }
+  .back-link:active { color: var(--text); }
+
+  /* ---- Wer würde eher ---- */
+  .vote-btn {
+    width: 100%; padding: 14px; border-radius: 12px; border: 1px solid var(--line);
+    background: var(--surface2); color: var(--text); font-weight: 700; font-size: 15px;
+    cursor: pointer; text-align: center;
+  }
+  .vote-btn:active { transform: scale(0.98); border-color: var(--accent); }
+  .tally-row { display: flex; align-items: center; gap: 10px; }
+  .tally-row .tname { width: 90px; font-weight: 700; font-size: 13.5px; flex-shrink: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tally-bar-wrap { flex: 1; background: var(--surface2); border-radius: 6px; height: 22px; overflow: hidden; }
+  .tally-bar { height: 100%; background: var(--accent); border-radius: 6px; min-width: 2px;
+    transition: width .5s ease; }
+  .tally-row .tvotes { width: 24px; text-align: right; font-weight: 800; font-size: 14px; }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: var(--red); color: #fff; padding: 11px 18px; border-radius: 12px;
+    font-size: 14px; font-weight: 600; z-index: 99; max-width: 90vw; text-align: center;
+    animation: toast-in .2s ease;
+  }
+  @keyframes toast-in { from { opacity: 0; transform: translateX(-50%) translateY(8px); } }
+
+  .waiting-pill {
+    display: inline-block; background: var(--surface2); border-radius: 999px;
+    padding: 7px 14px; font-size: 13px; color: var(--dim);
+  }
+  .pulse { animation: pulse 1.4s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: 0.55; } }
+  .footnote { text-align: center; color: #5A636E; font-size: 11.5px; margin-top: 12px; }
+  hr.div { border: none; border-top: 1px solid var(--line); margin: 16px 0; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+// ============================================================
+//  SPIELBAR Client — Plattform mit Spielauswahl.
+//  Der Client kennt NUR die eigene Hand / den eigenen Vote.
+// ============================================================
+
+let ws = null;
+let S = null;
+let myName = localStorage.getItem("spielbar_name") || "";
+let pendingJoinCode = new URLSearchParams(location.search).get("code") || "";
+let laySelections = [];
+let layPickIdx = null;
+let view = pendingJoinCode ? "join" : "landing"; // landing | join (nur vor dem Connect)
+let desiredGame = null; // auf der Startseite gewähltes Spiel (null = Übersicht)
+
+const GAME_META = {
+  busfahrer: {
+    icon: "🚌", name: "Busfahrer", desc: "Fragerunde · Pyramide · Busfahren",
+    tagline: "Der Karten-Klassiker", players: "2–6", time: "15–25 Min",
+    long: "Rate dich durch die Fragerunde, lege geschickt deine Karten in der Pyramide und hoffe, dass am Ende jemand anderes Bus fahren muss.",
+  },
+  werwuerde: {
+    icon: "🫵", name: "Wer würde eher?", desc: "Voten · Aufdecken · Trinken",
+    tagline: "Wer kennt die Gruppe?", players: "2–6", time: "5–10 Min",
+    long: "Eine Frage, alle voten gleichzeitig und geheim. Wer die meisten Stimmen kassiert, trinkt. Schnell, gemein und perfekt zum Aufwärmen.",
+  },
+};
+const SOON = [
+  { icon: "👑", name: "Kings Cup", tagline: "Der Becher-Klassiker" },
+  { icon: "❓", name: "Saufquiz", tagline: "Wissen oder trinken" },
+];
+
+const VL = { 11: "J", 12: "Q", 13: "K", 14: "A" };
+const vl = (v) => VL[v] || v;
+const isRed = (s) => s === "♥" || s === "♦";
+const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const app = document.getElementById("app");
+
+function connect(onOpen) {
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  ws = new WebSocket(`${proto}://${location.host}`);
+  ws.onopen = onOpen;
+  ws.onmessage = (ev) => {
+    const msg = JSON.parse(ev.data);
+    if (msg.type === "error") { toast(msg.msg); return; }
+    if (msg.type === "state") {
+      const prevPtr = S && S.pyramid ? S.pyramid.ptr : -99;
+      S = msg;
+      if (S.pyramid && S.pyramid.ptr !== prevPtr) { laySelections = []; layPickIdx = null; }
+      render();
+    }
+  };
+  ws.onclose = () => {
+    if (S) { S = null; view = "landing"; renderRoot("Verbindung verloren — lade die Seite neu, um wieder beizutreten."); }
+  };
+}
+
+function emit(obj) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj)); }
+
+function toast(msg) {
+  const t = document.createElement("div");
+  t.className = "toast"; t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3200);
+}
+
+// ---------- Bausteine ----------
+function header(phase) {
+  return `<div class="header">
+    <div class="logo">SPIEL<span>BAR</span></div>
+    ${phase ? `<div class="phase-tag">${phase}</div>` : ""}
+  </div>`;
+}
+
+function cardHTML(card, opts = {}) {
+  const cls = ["card"];
+  if (opts.sm) cls.push("sm");
+  if (opts.quer) cls.push("quer");
+  if (opts.hidden) cls.push("hidden");
+  if (opts.dim) cls.push("dim");
+  if (opts.selectable) cls.push("selectable");
+  if (opts.selected) cls.push("selected");
+  if (opts.current) cls.push("current");
+  if (card && !opts.hidden) cls.push(isRed(card.s) ? "red" : "black");
+  const inner = opts.hidden || !card ? "" :
+    `<span class="corner tl">${vl(card.v)}</span><span class="pip">${card.s}</span><span class="corner br">${vl(card.v)}</span>`;
+  return `<div class="${cls.join(" ")}" ${opts.attr || ""}>${inner}</div>`;
+}
+
+function sipLogHTML() {
+  if (!S || !S.sipLog || S.sipLog.length === 0) return "";
+  return `<div class="sip-log">${S.sipLog.map(m => `<div>${esc(m)}</div>`).join("")}</div>`;
+}
+
+// ---------- Landingpage = Spielauswahl (vor dem Raum) ----------
+// Kein Spiel gewählt → alle Spiele. Spiel gewählt → nur dieses + Aktionen.
+function renderLanding(notice) {
+  if (!desiredGame) {
+    // Übersicht aller Spiele
+    app.innerHTML = `
+      ${header()}
+      <div class="hero">
+        <div class="eyebrow">Trinkspiele · 18+</div>
+        <div class="title-xl">Trinkspiele,<br>online gespielt.</div>
+        <div class="sub" style="margin-top:8px">Wähl ein Spiel und schick den Code an deine Crew. Jeder am eigenen Gerät.</div>
+        ${notice ? `<div class="sub" style="color:var(--red);margin-top:10px">${esc(notice)}</div>` : ""}
+        <button class="btn full" id="haveCode" style="margin-top:16px">Ich habe einen Code →</button>
+      </div>
+      <div class="section-label">Spiele</div>
+      <div class="game-list">
+        ${Object.entries(GAME_META).map(([key, g]) => `
+          <div class="game-tile" data-pick="${key}">
+            <div class="tile-icon">${g.icon}</div>
+            <div class="tile-body">
+              <div class="tile-name">${g.name}</div>
+              <div class="tile-tag">${g.tagline}</div>
+              <div class="tile-meta">👥 ${g.players} · ⏱ ${g.time}</div>
+            </div>
+            <div class="tile-arrow">→</div>
+          </div>`).join("")}
+        ${SOON.map(g => `
+          <div class="game-tile locked">
+            <div class="tile-icon">${g.icon}</div>
+            <div class="tile-body">
+              <div class="tile-name">${g.name}</div>
+              <div class="tile-tag">${g.tagline}</div>
+            </div>
+            <div class="soon-tag">Bald</div>
+          </div>`).join("")}
+      </div>
+      <div class="footnote">Bitte trinkt verantwortungsvoll. Kein Alkohol unter 18.</div>
+    `;
+    document.querySelectorAll("[data-pick]").forEach(el => el.onclick = () => {
+      desiredGame = el.dataset.pick; renderRoot();
+    });
+    document.getElementById("haveCode").onclick = () => { view = "join"; renderRoot(); };
+    return;
+  }
+
+  // Ein Spiel ist gewählt → Detailansicht mit Aktionen
+  const g = GAME_META[desiredGame];
+  app.innerHTML = `
+    ${header()}
+    <button class="back-link" id="back">← Andere Spiele</button>
+    <div class="panel" style="padding:24px 20px">
+      <div style="display:flex;align-items:center;gap:14px">
+        <div style="font-size:42px">${g.icon}</div>
+        <div>
+          <div class="title-lg">${g.name}</div>
+          <div class="sub">${g.tagline} · 👥 ${g.players} · ⏱ ${g.time}</div>
+        </div>
+      </div>
+      <div class="sub" style="margin-top:14px;line-height:1.55">${g.long}</div>
+    </div>
+    <div class="panel">
+      <div class="eyebrow">Los geht's</div>
+      <div class="stack">
+        <input type="text" id="name" maxlength="16" placeholder="Dein Name" value="${esc(myName)}" />
+        <button class="btn primary full" id="create">${g.icon} Raum erstellen</button>
+        <button class="btn full" id="haveCode">Stattdessen Code eingeben</button>
+      </div>
+      ${notice ? `<div class="sub" style="color:var(--red);margin-top:10px">${esc(notice)}</div>` : ""}
+      <div class="sub" style="margin-top:12px;font-size:12px">Du wirst Host. Du kannst das Spiel danach noch wechseln.</div>
+    </div>
+  `;
+  document.getElementById("back").onclick = () => { desiredGame = null; renderRoot(); };
+  document.getElementById("haveCode").onclick = () => { view = "join"; renderRoot(); };
+  document.getElementById("create").onclick = () => {
+    const n = document.getElementById("name").value.trim();
+    if (!n) { toast("Bitte gib einen Namen ein."); return; }
+    myName = n; localStorage.setItem("spielbar_name", n);
+    const picked = desiredGame;
+    connect(() => {
+      emit({ type: "create", name: n });
+      // Direkt nach dem Erstellen das gewählte Spiel setzen
+      setTimeout(() => emit({ type: "selectGame", game: picked }), 150);
+    });
+  };
+}
+
+// ---------- Beitreten per Code ----------
+function renderJoin(notice) {
+  app.innerHTML = `
+    ${header()}
+    <button class="back-link" id="back">← Zurück</button>
+    <div class="panel center" style="padding:26px 20px">
+      <div style="font-size:42px">🎟️</div>
+      <div class="title-lg" style="margin-top:4px">Raum beitreten</div>
+      <div class="sub" style="margin-top:4px">Gib den Code ein, den dein Host geteilt hat. Welches Spiel gespielt wird, entscheidet ihr gemeinsam im Raum.</div>
+    </div>
+    <div class="panel">
+      <div class="stack">
+        <input type="text" id="name" maxlength="16" placeholder="Dein Name" value="${esc(myName)}" />
+        <input type="text" id="code" maxlength="4" placeholder="Raumcode (z.B. K7XP)" value="${esc(pendingJoinCode)}"
+               style="text-transform:uppercase;letter-spacing:4px;text-align:center" />
+        <button class="btn primary full" id="join">Beitreten</button>
+      </div>
+      ${notice ? `<div class="sub" style="color:var(--red);margin-top:10px">${esc(notice)}</div>` : ""}
+    </div>
+  `;
+  document.getElementById("back").onclick = () => { view = "landing"; renderRoot(); };
+  document.getElementById("join").onclick = () => {
+    const n = document.getElementById("name").value.trim();
+    if (!n) { toast("Bitte gib einen Namen ein."); return; }
+    myName = n; localStorage.setItem("spielbar_name", n);
+    const code = document.getElementById("code").value.trim().toUpperCase();
+    if (code.length !== 4) { toast("Der Raumcode hat 4 Zeichen."); return; }
+    connect(() => emit({ type: "join", name: n, code }));
+  };
+}
+
+// ---------- Lobby = Raum + Spielauswahl ----------
+function renderLobby() {
+  const link = `${location.origin}/?code=${S.code}`;
+
+  // Raumcode + Spielerliste (immer sichtbar)
+  const roomPanel = `
+    <div class="panel center">
+      <div class="eyebrow">Raumcode — schick ihn deinen Freunden</div>
+      <div class="code-display">${S.code}</div>
+      <div style="margin-top:12px"><button class="btn sm" id="copy">🔗 Einladungslink kopieren</button></div>
+    </div>
+    <div class="panel">
+      <div class="eyebrow">Spieler (${S.players.length}/${S.maxPlayers})</div>
+      <div class="stack">
+        ${S.players.map(p => `
+          <div class="player-chip ${p.connected ? "" : "offline"}">
+            <span class="name">${esc(p.name)}${p.id === S.you.id ? " (du)" : ""}</span>
+            ${p.isHost ? `<span class="badge">Host</span>` : ""}
+          </div>`).join("")}
+      </div>
+      ${S.players.length >= S.maxPlayers ? `
+        <div class="sub" style="margin-top:10px;padding:9px 12px;border:1px dashed var(--line);border-radius:10px">
+          🔒 Mehr als ${S.maxPlayers} Spieler — <b style="color:var(--accent)">Premium</b>
+        </div>` : ""}
+    </div>`;
+
+  if (!S.game) {
+    // Noch kein Spiel gewählt → alle Spiele anzeigen
+    app.innerHTML = `
+      ${header("Lobby")}
+      ${roomPanel}
+      <div class="panel">
+        <div class="eyebrow">Spiel wählen ${S.isHost ? "" : "— der Host entscheidet"}</div>
+        <div class="game-list">
+          ${Object.entries(GAME_META).map(([key, g]) => `
+            <div class="game-tile" ${S.isHost ? `data-game="${key}"` : ""}>
+              <div class="tile-icon">${g.icon}</div>
+              <div class="tile-body">
+                <div class="tile-name">${g.name}</div>
+                <div class="tile-tag">${g.tagline}</div>
+                <div class="tile-meta">👥 ${g.players} · ⏱ ${g.time}</div>
+              </div>
+              ${S.isHost ? `<div class="tile-arrow">→</div>` : ""}
+            </div>`).join("")}
+          ${SOON.map(g => `
+            <div class="game-tile locked">
+              <div class="tile-icon">${g.icon}</div>
+              <div class="tile-body"><div class="tile-name">${g.name}</div><div class="tile-tag">${g.tagline}</div></div>
+              <div class="soon-tag">Bald</div>
+            </div>`).join("")}
+        </div>
+        ${!S.isHost ? `<div class="center" style="margin-top:12px"><span class="waiting-pill pulse">Warte, bis der Host ein Spiel wählt…</span></div>` : ""}
+      </div>
+    `;
+    document.getElementById("copy").onclick = copyLink;
+    if (S.isHost) {
+      document.querySelectorAll("[data-game]").forEach(el =>
+        el.onclick = () => emit({ type: "selectGame", game: el.dataset.game }));
+    }
+    return;
+  }
+
+  // Spiel gewählt → nur dieses Spiel + Regeln/Einstellungen
+  const gm = GAME_META[S.game];
+  app.innerHTML = `
+    ${header("Lobby")}
+    ${roomPanel}
+    <div class="panel">
+      ${S.isHost ? `<button class="back-link" id="otherGame">← Anderes Spiel</button>` : ""}
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:6px">
+        <div style="font-size:38px">${gm.icon}</div>
+        <div>
+          <div class="title-lg">${gm.name}</div>
+          <div class="sub">${gm.tagline} · 👥 ${gm.players} · ⏱ ${gm.time}</div>
+        </div>
+      </div>
+      <div class="sub" style="line-height:1.5">${gm.long}</div>
+
+      ${S.game === "busfahrer" && S.isHost ? `
+        <div class="eyebrow" style="margin-top:18px">Wer fährt Bus?</div>
+        <div class="row" style="flex-wrap:nowrap">
+          <button class="mode-btn ${S.mode === "cards" ? "active" : ""}" id="mCards">Meiste Karten</button>
+          <button class="mode-btn ${S.mode === "points" ? "active" : ""}" id="mPoints">Höchste Punkte</button>
+        </div>` : ""}
+      ${S.game === "busfahrer" && !S.isHost ? `
+        <div class="sub" style="margin-top:14px;font-size:12.5px">Modus: ${S.mode === "cards" ? "Meiste Karten fährt Bus" : "Höchste Punkte fährt Bus"}</div>` : ""}
+
+      ${S.game === "werwuerde" && S.wwCats ? `
+        <div class="eyebrow" style="margin-top:18px">Kategorien ${S.isHost ? "" : "— der Host wählt"}</div>
+        <div class="cat-list">
+          ${S.wwCats.map(c => `
+            <div class="cat-chip ${c.active ? "active" : ""} ${c.adult ? "adult" : ""}" ${S.isHost ? `data-cat="${c.key}"` : ""}>
+              <span class="cat-ic">${c.icon}</span>
+              <span class="cat-body">
+                <span class="cat-name">${c.name}${c.adult ? ` <span class="age">18+</span>` : ""}</span>
+                <span class="cat-desc">${c.desc} · ${c.count} Fragen</span>
+              </span>
+              <span class="cat-check">${c.active ? "✓" : ""}</span>
+            </div>`).join("")}
+        </div>
+
+        <div class="eyebrow" style="margin-top:18px">Eigene Fragen ${S.wwCustom.length ? `(${S.wwCustom.length})` : ""}</div>
+        <div class="sub" style="font-size:12px;margin-bottom:8px">Jeder im Raum kann vor dem Start eigene Fragen hinzufügen. „Wer würde eher" wird automatisch ergänzt.</div>
+        ${S.wwCustom.length ? `<div class="stack" style="margin-bottom:10px">
+          ${S.wwCustom.map((q, i) => `
+            <div class="custom-q">
+              <span>Wer würde eher ${esc(q)}</span>
+              ${S.isHost ? `<button class="custom-x" data-rmq="${i}">✕</button>` : ""}
+            </div>`).join("")}
+        </div>` : ""}
+        <div class="row" style="flex-wrap:nowrap;gap:8px">
+          <input type="text" id="customQ" maxlength="120" placeholder="z.B. als Erste/r einschlafen" style="flex:1" />
+          <button class="btn sm" id="addQ">+ Frage</button>
+        </div>` : ""}
+    </div>
+
+    ${S.game === "werwuerde" && S.isHost && S.wwCats && S.wwCats.filter(c=>c.active).length === 0 && S.wwCustom.length === 0 ? `
+      <div class="panel" style="border:1px dashed var(--line);background:transparent">
+        <div class="sub center">Wähl mindestens eine Kategorie oder füg eigene Fragen hinzu.</div>
+      </div>` : ""}
+
+    ${S.isHost ? `
+      <div class="panel">
+        <button class="btn primary full" id="start" ${startDisabled() ? "disabled" : ""}>
+          ${S.players.length < 2 ? "Warte auf Mitspieler…" : `${gm.icon} ${gm.name} starten`}
+        </button>
+      </div>` : `
+      <div class="center" style="margin-top:8px"><span class="waiting-pill pulse">Warte, bis der Host startet…</span></div>`}
+  `;
+  document.getElementById("copy").onclick = copyLink;
+  // Eigene Fragen: jeder darf hinzufügen
+  const addQ = document.getElementById("addQ");
+  if (addQ) {
+    const submitQ = () => {
+      const inp = document.getElementById("customQ");
+      const t = inp.value.trim();
+      if (t.length < 3) { toast("Frage ist zu kurz."); return; }
+      emit({ type: "wwAddCustom", text: t });
+      inp.value = "";
+    };
+    addQ.onclick = submitQ;
+    const inp = document.getElementById("customQ");
+    if (inp) inp.onkeydown = (e) => { if (e.key === "Enter") submitQ(); };
+  }
+  if (S.isHost) {
+    const og = document.getElementById("otherGame");
+    if (og) og.onclick = () => emit({ type: "selectGame", game: null });
+    let mode = S.mode;
+    const mc = document.getElementById("mCards"), mp = document.getElementById("mPoints");
+    if (mc) mc.onclick = () => { mode = "cards"; mc.classList.add("active"); mp.classList.remove("active"); };
+    if (mp) mp.onclick = () => { mode = "points"; mp.classList.add("active"); mc.classList.remove("active"); };
+    document.querySelectorAll("[data-cat]").forEach(el =>
+      el.onclick = () => emit({ type: "wwToggleCat", cat: el.dataset.cat }));
+    document.querySelectorAll("[data-rmq]").forEach(el =>
+      el.onclick = () => emit({ type: "wwRemoveCustom", index: parseInt(el.dataset.rmq) }));
+    const startBtn = document.getElementById("start");
+    if (startBtn) startBtn.onclick = () => emit({ type: "start", mode });
+  }
+}
+
+// Start blockiert: zu wenig Spieler, oder Wer-würde-eher ohne Inhalt
+function startDisabled() {
+  if (S.players.length < 2) return true;
+  if (S.game === "werwuerde" && S.wwCats) {
+    const anyCat = S.wwCats.some(c => c.active);
+    const anyCustom = S.wwCustom && S.wwCustom.length > 0;
+    if (!anyCat && !anyCustom) return true;
+  }
+  return false;
+}
+
+function copyLink() {
+  const link = `${location.origin}/?code=${S.code}`;
+  navigator.clipboard.writeText(link)
+    .then(() => toast("Link kopiert! 🔗"))
+    .catch(() => prompt("Link zum Kopieren:", link));
+}
+
+// ---------- Busfahrer ----------
+const Q_META = [
+  { title: "Rot oder Schwarz?", sub: "", opts: [["Rot", "rot"], ["Schwarz", "schwarz"]] },
+  { title: "Höher oder Tiefer?", sub: "als Karte 1 · gleich = falsch", opts: [["Höher", "hoch"], ["Tiefer", "tief"]] },
+  { title: "Innen oder Außen?", sub: "zwischen Karte 1 & 2 · gleich = falsch", opts: [["Innen", "innen"], ["Außen", "außen"]] },
+  { title: "Welche Farbe?", sub: "", opts: [["♥", "♥"], ["♦", "♦"], ["♣", "♣"], ["♠", "♠"]] },
+];
+
+function myHandPanel() {
+  if (!S.you.hand.length) return "";
+  return `<div class="panel">
+    <div class="eyebrow">🔒 Deine Karten — nur du siehst sie</div>
+    <div class="row" style="justify-content:flex-start">${S.you.hand.map(c => cardHTML(c, { sm: true })).join("")}</div>
+  </div>`;
+}
+
+function renderQuestions() {
+  const q = S.questions;
+  const meta = Q_META[q.qIndex];
+  const myTurn = q.turnPlayerId === S.you.id;
+  app.innerHTML = `
+    ${header(`Busfahrer · Fragerunde ${q.qIndex + 1}/4`)}
+    <div class="panel center">
+      <div class="eyebrow">${myTurn ? "Du bist dran!" : esc(q.turnPlayerName) + " ist dran"}</div>
+      <div class="title-lg">${meta.title}</div>
+      ${meta.sub ? `<div class="sub">${meta.sub}</div>` : ""}
+      ${q.turnHand.length ? `<div class="row" style="margin:16px 0 4px">${q.turnHand.map(c => cardHTML(c, { sm: true })).join("")}</div>` : ""}
+      ${!q.pending ? (
+        myTurn
+          ? `<div class="row" style="margin-top:18px">${meta.opts.map(([l, v]) =>
+              `<button class="btn primary" data-ans="${v}" style="${q.qIndex === 3 ? "font-size:22px;min-width:60px" : ""}">${l}</button>`).join("")}</div>`
+          : `<div style="margin-top:18px"><span class="waiting-pill pulse">${esc(q.turnPlayerName)} überlegt…</span></div>`
+      ) : `
+        <div style="margin-top:18px">
+          <div class="row" style="margin-bottom:12px">${cardHTML(q.pending.card)}</div>
+          <div class="${q.pending.correct ? "result-good" : "result-bad"}" style="margin-bottom:14px">
+            ${q.pending.correct ? "Richtig! 🎉" : (myTurn ? "Falsch — trink! 🍺" : `Falsch — ${esc(q.turnPlayerName)} trinkt! 🍺`)}
+          </div>
+          ${myTurn || S.isHost ? `<button class="btn full" id="qnext">Weiter</button>` : `<span class="waiting-pill pulse">Gleich geht's weiter…</span>`}
+        </div>`}
+    </div>
+    ${myHandPanel()}
+    <div class="panel" style="background:transparent;padding:0">${sipLogHTML()}</div>
+  `;
+  document.querySelectorAll("[data-ans]").forEach(b => b.onclick = () => emit({ type: "answer", value: b.dataset.ans }));
+  const n = document.getElementById("qnext");
+  if (n) n.onclick = () => emit({ type: "qNext" });
+}
+
+function renderPyramid() {
+  const py = S.pyramid;
+  const rowsTopFirst = [...py.rows].reverse();
+  let flatIdx = py.rows.flat().length;
+
+  const pyramidHTML = `<div class="pyramid">
+    ${rowsTopFirst.map(row => {
+      flatIdx -= row.length;
+      let i = flatIdx;
+      return `<div class="prow">${row.map(slot => {
+        const isCurrent = py.ptr === i && slot.revealed && py.sub === "choose";
+        i++;
+        return cardHTML(slot.card, { sm: true, quer: slot.quer, hidden: !slot.revealed, current: isCurrent, dim: slot.revealed && !isCurrent });
+      }).join("")}</div>`;
+    }).join("")}
+  </div>
+  <div class="sub center" style="font-size:12px">Reihe 1 = 1 Schluck · Reihe 4 = 4 · quer = doppelt</div>`;
+
+  let actionHTML = "";
+
+  if (py.sub === "choose") {
+    const sipsWord = py.currentSips === 1 ? "Schluck" : "Schlücke";
+    if (!py.youDone) {
+      const canLay = py.youCanLay;
+      actionHTML = `
+        <div class="center" style="margin-bottom:12px">
+          <b style="font-size:17px">${vl(py.currentCard.v)}${py.currentCard.s} liegt!</b>
+          <span style="color:var(--accent);font-weight:700"> — ${py.currentSips} ${sipsWord} pro Karte</span>
+        </div>
+        <div class="eyebrow">🔒 Deine Karten — nur du siehst sie</div>
+        ${canLay.length === 0 ? `<div class="sub" style="margin-bottom:8px">Keine passende Karte. Tippe „Ich lege nicht" — die anderen erfahren nicht, ob du gekonnt hättest. 😏</div>` : ""}
+        <div class="row" style="justify-content:flex-start;margin-bottom:12px">
+          ${S.you.hand.map((c, i) => {
+            const matches = canLay.includes(i);
+            const sel = laySelections.some(s => s.cardIdx === i) || layPickIdx === i;
+            return cardHTML(c, { sm: true, dim: !matches, selectable: matches, selected: sel, attr: `data-card="${i}"` });
+          }).join("")}
+        </div>
+        ${layPickIdx !== null ? `
+          <div style="background:rgba(245,185,69,0.08);border:1px solid var(--accent-dark);border-radius:12px;padding:12px;margin-bottom:12px">
+            <div style="font-size:13.5px;font-weight:700;margin-bottom:8px">Wer trinkt die ${py.currentSips} ${sipsWord}?</div>
+            <div class="row" style="justify-content:flex-start">
+              ${S.players.map(p => `<button class="btn sm" data-target="${p.id}">${esc(p.name)}</button>`).join("")}
+            </div>
+          </div>` : ""}
+        ${laySelections.length ? `
+          <div class="sub" style="margin-bottom:12px">
+            ${laySelections.map(s => `→ ${vl(S.you.hand[s.cardIdx].v)}${S.you.hand[s.cardIdx].s} für <b>${esc(S.players.find(p => p.id === s.targetId)?.name || "?")}</b>`).join("<br>")}
+          </div>` : ""}
+        <div class="row" style="flex-wrap:nowrap">
+          <button class="btn full" id="noLay">Ich lege nicht</button>
+          <button class="btn primary full" id="confirmLay" ${laySelections.length === 0 ? "disabled" : ""}>
+            ${laySelections.length ? `${laySelections.length}× legen ✓` : "Legen ✓"}
+          </button>
+        </div>`;
+    } else {
+      actionHTML = `
+        <div class="center">
+          <b style="font-size:17px">${vl(py.currentCard.v)}${py.currentCard.s} liegt!</b>
+          <div style="margin-top:14px"><span class="waiting-pill pulse">Warte auf: ${py.waitingNames.map(esc).join(", ")}…</span></div>
+        </div>`;
+    }
+  } else {
+    const isLast = py.ptr + 1 >= py.total;
+    actionHTML = `
+      ${py.lastLog && py.lastLog.length ? `<div class="stack" style="margin-bottom:14px">
+        ${py.lastLog.map(l => `<div class="sub" style="background:var(--surface2);padding:8px 11px;border-radius:9px;color:var(--text)">${esc(l)}</div>`).join("")}
+      </div>` : ""}
+      ${S.isHost
+        ? (isLast && py.ptr >= 0
+            ? `<button class="btn primary full" id="toBus">Pyramide fertig — wer fährt Bus? 🚌</button>`
+            : `<button class="btn primary full" id="nextCard">${py.ptr < 0 ? "Erste Karte aufdecken" : "Nächste Karte aufdecken"}</button>`)
+        : `<div class="center"><span class="waiting-pill pulse">${isLast && py.ptr >= 0 ? "Gleich geht's zum Bus…" : "Der Host deckt gleich auf…"}</span></div>`}
+    `;
+  }
+
+  app.innerHTML = `
+    ${header("Busfahrer · Pyramide")}
+    <div class="panel" style="background:transparent;padding:6px 0">${pyramidHTML}</div>
+    <div class="panel">${actionHTML}</div>
+    ${py.sub !== "choose" || py.youDone ? myHandPanel() : ""}
+    <div class="panel" style="background:transparent;padding:0">${sipLogHTML()}</div>
+  `;
+
+  document.querySelectorAll("[data-card]").forEach(el => el.onclick = () => {
+    const i = parseInt(el.dataset.card);
+    if (!S.pyramid.youCanLay.includes(i)) return;
+    const exist = laySelections.findIndex(s => s.cardIdx === i);
+    if (exist >= 0) { laySelections.splice(exist, 1); layPickIdx = null; render(); return; }
+    if (layPickIdx === i) { layPickIdx = null; render(); return; }
+    layPickIdx = i;
+    render();
+  });
+  document.querySelectorAll("[data-target]").forEach(el => el.onclick = () => {
+    if (layPickIdx === null) return;
+    laySelections.push({ cardIdx: layPickIdx, targetId: el.dataset.target });
+    layPickIdx = null;
+    render();
+  });
+  const noLay = document.getElementById("noLay");
+  if (noLay) noLay.onclick = () => { laySelections = []; layPickIdx = null; emit({ type: "lay", plays: [] }); };
+  const confirmLay = document.getElementById("confirmLay");
+  if (confirmLay) confirmLay.onclick = () => { emit({ type: "lay", plays: laySelections }); laySelections = []; layPickIdx = null; };
+  const nextCard = document.getElementById("nextCard");
+  if (nextCard) nextCard.onclick = () => emit({ type: "nextCard" });
+  const toBus = document.getElementById("toBus");
+  if (toBus) toBus.onclick = () => emit({ type: "toBus" });
+}
+
+function renderBusIntro() {
+  const meDriver = S.bus.driverId === S.you.id;
+  app.innerHTML = `
+    ${header("Busfahren")}
+    <div class="panel center" style="margin-top:24px;padding:28px 20px">
+      <div style="font-size:44px">🚌</div>
+      <div class="eyebrow">${S.mode === "cards" ? "Meiste Karten übrig" : "Höchste Punkte übrig"}</div>
+      <div class="title-xl" style="font-size:28px;margin:4px 0 10px">${meDriver ? "DU fährst Bus!" : esc(S.bus.driverName) + " fährt Bus!"}</div>
+      <div class="sub" style="margin-bottom:22px">
+        4 Fragen in Folge richtig = frei.<br>Falsch bei Frage X = X Schlücke und alles von vorne.
+      </div>
+      ${meDriver || S.isHost
+        ? `<button class="btn primary full" id="busStart">Einsteigen 🚌</button>`
+        : `<span class="waiting-pill pulse">${esc(S.bus.driverName)} steigt gleich ein…</span>`}
+    </div>
+  `;
+  const b = document.getElementById("busStart");
+  if (b) b.onclick = () => emit({ type: "busStart" });
+}
+
+function renderBus() {
+  const bus = S.bus;
+  const meta = Q_META[bus.step];
+  const meDriver = bus.driverId === S.you.id;
+  const riskWord = bus.step === 0 ? "Schluck" : "Schlücke";
+  app.innerHTML = `
+    ${header("Busfahren")}
+    <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--dim);margin-bottom:12px">
+      <span>Fahrer: <b style="color:var(--text)">${esc(bus.driverName)}</b></span>
+      <span>Fehlversuche: ${bus.fails} · Schlücke: <b style="color:var(--red)">${bus.total}</b></span>
+    </div>
+    <div class="panel center">
+      <div class="row" style="margin-bottom:16px">
+        ${[0, 1, 2, 3].map(i => bus.run[i] ? cardHTML(bus.run[i], { sm: true }) : cardHTML(null, { sm: true, hidden: true, dim: i > bus.step })).join("")}
+      </div>
+      <div class="eyebrow">Frage ${bus.step + 1} von 4 · ${bus.step + 1} ${riskWord} Risiko</div>
+      <div class="title-lg">${meta.title}</div>
+      ${meta.sub ? `<div class="sub">${meta.sub}</div>` : ""}
+      ${!bus.pending ? (
+        meDriver
+          ? `<div class="row" style="margin-top:18px">${meta.opts.map(([l, v]) =>
+              `<button class="btn primary" data-bans="${v}" style="${bus.step === 3 ? "font-size:22px;min-width:60px" : ""}">${l}</button>`).join("")}</div>`
+          : `<div style="margin-top:18px"><span class="waiting-pill pulse">${esc(bus.driverName)} schwitzt…</span></div>`
+      ) : `
+        <div style="margin-top:18px">
+          <div class="row" style="margin-bottom:12px">${cardHTML(bus.pending.card)}</div>
+          <div class="${bus.pending.correct ? "result-good" : "result-bad"}" style="margin-bottom:14px;font-size:18px">
+            ${bus.pending.correct
+              ? (bus.step === 3 ? "Geschafft! Frei! 🎉" : "Richtig — weiter!")
+              : `Falsch! ${bus.step + 1} ${riskWord} & zurück auf Start 🍺`}
+          </div>
+          ${meDriver || S.isHost ? `<button class="btn full" id="busNext">Weiter</button>` : `<span class="waiting-pill pulse">…</span>`}
+        </div>`}
+    </div>
+    <div class="panel" style="background:transparent;padding:0">${sipLogHTML()}</div>
+  `;
+  document.querySelectorAll("[data-bans]").forEach(b => b.onclick = () => emit({ type: "busAnswer", value: b.dataset.bans }));
+  const n = document.getElementById("busNext");
+  if (n) n.onclick = () => emit({ type: "busNext" });
+}
+
+function renderBusEnd() {
+  app.innerHTML = `
+    ${header()}
+    <div class="panel center" style="margin-top:24px;padding:28px 20px">
+      <div style="font-size:44px">🏁</div>
+      <div class="title-xl" style="font-size:28px;margin:6px 0">Endstation!</div>
+      <div class="sub" style="margin-bottom:6px">
+        <b style="color:var(--text)">${esc(S.bus.driverName)}</b> hat den Bus geparkt —<br>
+        nach <b style="color:var(--red)">${S.bus.fails}</b> Fehlversuchen und <b style="color:var(--red)">${S.bus.total}</b> Schlücken.
+      </div>
+      <div class="row" style="margin:16px 0 22px">${S.bus.run.map(c => cardHTML(c, { sm: true })).join("")}</div>
+      ${S.isHost
+        ? `<button class="btn primary full" id="back">Zurück zur Lobby 🎮</button>`
+        : `<span class="waiting-pill pulse">Gleich geht's zurück zur Lobby…</span>`}
+    </div>
+  `;
+  const a = document.getElementById("back");
+  if (a) a.onclick = () => emit({ type: "backToLobby" });
+}
+
+// ---------- Wer würde eher ----------
+function renderWwVote() {
+  const ww = S.ww;
+  app.innerHTML = `
+    ${header(`Wer würde eher? · ${ww.round}/${ww.totalRounds}`)}
+    <div class="panel center" style="padding:26px 20px">
+      <div class="eyebrow">Frage ${ww.round}</div>
+      <div class="title-lg" style="line-height:1.3">Wer würde eher<br>${esc(ww.prompt)}</div>
+    </div>
+    ${!ww.youVoted ? `
+      <div class="panel">
+        <div class="eyebrow">🔒 Dein Vote — geheim bis alle gewählt haben</div>
+        <div class="stack">
+          ${S.players.map(p => `
+            <button class="vote-btn" data-vote="${p.id}">${esc(p.name)}${p.id === S.you.id ? " (du selbst 😈)" : ""}</button>`).join("")}
+        </div>
+      </div>` : `
+      <div class="center" style="margin-top:8px">
+        <span class="waiting-pill pulse">✓ Gevotet! Warte auf: ${ww.waitingNames.map(esc).join(", ") || "…"}</span>
+      </div>`}
+    <div class="panel" style="background:transparent;padding:0;margin-top:14px">${sipLogHTML()}</div>
+  `;
+  document.querySelectorAll("[data-vote]").forEach(b => b.onclick = () => emit({ type: "wwVote", targetId: b.dataset.vote }));
+}
+
+function renderWwReveal() {
+  const ww = S.ww;
+  const r = ww.reveal;
+  const maxV = Math.max(1, ...r.tally.map(t => t.votes));
+  app.innerHTML = `
+    ${header(`Wer würde eher? · ${ww.round}/${ww.totalRounds}`)}
+    <div class="panel center">
+      <div class="eyebrow">Wer würde eher ${esc(ww.prompt)}</div>
+      <div class="title-lg" style="margin:8px 0 4px">${r.drinkers.map(esc).join(" & ")} 🫵</div>
+      <div class="sub">${r.drinkers.length > 1 ? "trinken" : "trinkt"} <b style="color:var(--red)">${r.sips} ${r.sips === 1 ? "Schluck" : "Schlücke"}</b></div>
+    </div>
+    <div class="panel">
+      <div class="eyebrow">Stimmen</div>
+      <div class="stack">
+        ${r.tally.map(t => `
+          <div class="tally-row">
+            <span class="tname">${esc(t.name)}</span>
+            <div class="tally-bar-wrap"><div class="tally-bar" style="width:${(t.votes / maxV) * 100}%"></div></div>
+            <span class="tvotes">${t.votes}</span>
+          </div>`).join("")}
+      </div>
+    </div>
+    ${S.isHost
+      ? `<button class="btn primary full" id="wwNext">${ww.round >= ww.totalRounds ? "Ergebnis ansehen 🏆" : "Nächste Frage →"}</button>`
+      : `<div class="center"><span class="waiting-pill pulse">Der Host macht gleich weiter…</span></div>`}
+    <div class="panel" style="background:transparent;padding:0;margin-top:14px">${sipLogHTML()}</div>
+  `;
+  const n = document.getElementById("wwNext");
+  if (n) n.onclick = () => emit({ type: "wwNext" });
+}
+
+function renderWwEnd() {
+  const totals = S.ww.totals;
+  const top = totals[0];
+  const maxV = Math.max(1, ...totals.map(t => t.votes));
+  app.innerHTML = `
+    ${header()}
+    <div class="panel center" style="margin-top:24px;padding:28px 20px">
+      <div style="font-size:44px">🏆</div>
+      <div class="eyebrow">Meiste Stimmen insgesamt</div>
+      <div class="title-xl" style="font-size:28px;margin:4px 0 14px">${esc(top.name)}</div>
+      <div class="stack" style="text-align:left;margin-bottom:20px">
+        ${totals.map(t => `
+          <div class="tally-row">
+            <span class="tname">${esc(t.name)}</span>
+            <div class="tally-bar-wrap"><div class="tally-bar" style="width:${(t.votes / maxV) * 100}%"></div></div>
+            <span class="tvotes">${t.votes}</span>
+          </div>`).join("")}
+      </div>
+      ${S.isHost
+        ? `<button class="btn primary full" id="back">Zurück zur Lobby 🎮</button>`
+        : `<span class="waiting-pill pulse">Gleich geht's zurück zur Lobby…</span>`}
+    </div>
+  `;
+  const a = document.getElementById("back");
+  if (a) a.onclick = () => emit({ type: "backToLobby" });
+}
+
+// ---------- Router ----------
+// Vor dem Connect: Landingpage / Create / Join. Nach dem Connect: Spiel-State.
+function renderRoot(notice) {
+  if (S) return render();
+  if (view === "join") return renderJoin(notice);
+  return renderLanding(notice);
+}
+
+function render() {
+  if (!S) return renderRoot();
+  switch (S.phase) {
+    case "lobby":     return renderLobby();
+    case "questions": return renderQuestions();
+    case "pyramid":   return renderPyramid();
+    case "busIntro":  return renderBusIntro();
+    case "bus":       return renderBus();
+    case "end":       return renderBusEnd();
+    case "ww_vote":   return renderWwVote();
+    case "ww_reveal": return renderWwReveal();
+    case "ww_end":    return renderWwEnd();
+  }
+}
+
+renderRoot();
+</script>
+</body>
+</html>

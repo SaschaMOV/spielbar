@@ -1,0 +1,16 @@
+{
+  "name": "spielbar_test",
+  "version": "0.1.0",
+  "description": "Spielbar - neue WWE-Fragen - TESTVERSION",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^5.2.1",
+    "ws": "^8.21.0"
+  }
+}
